@@ -145,11 +145,52 @@ TOR_CFLAGS_CRYPTLIB+=@NSS_CFLAGS@
 TOR_LIBS_CRYPTLIB+=@NSS_LIBS@
 endif
 
+###########################################
+# Build only what BTP needs,              #
+# everything else should be commented out #
+###########################################
+include src/core/include.am
+include src/lib/compress/include.am
+include src/lib/crypt_ops/include.am
+include src/lib/evloop/include.am
+include src/lib/include.libdonna.am
+include src/lib/tls/include.am
+include src/lib/process/include.am
+include src/lib/geoip/include.am
+include src/lib/encoding/include.am
+include src/lib/fs/include.am
+include src/lib/time/include.am
+include src/lib/buf/include.am
+include src/lib/container/include.am
+include src/lib/sandbox/include.am
+include src/lib/thread/include.am
+include src/lib/net/include.am
+include src/lib/math/include.am
+include src/lib/memarea/include.am
+include src/lib/meminfo/include.am
+include src/lib/lock/include.am
+include src/lib/log/include.am
+include src/lib/osinfo/include.am
+include src/lib/string/include.am
+include src/lib/fdio/include.am
+include src/lib/smartlist_core/include.am
+include src/lib/term/include.am
+include src/lib/wallclock/include.am
+include src/lib/malloc/include.am
+include src/lib/version/include.am
+include src/lib/err/include.am
+include src/lib/trace/include.am
+include src/lib/ctime/include.am
+include src/lib/intmath/include.am
+include src/trunnel/include.am
+include src/ext/include.am
+###########################################
+
 # All libraries used to link tor-cov
 
-include src/include.am
-include doc/include.am
-include contrib/include.am
+#include src/include.am
+#include doc/include.am
+#include contrib/include.am
 
 EXTRA_DIST+= \
 	ChangeLog					\
