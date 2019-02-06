@@ -73,6 +73,8 @@ lzma_error_str(lzma_ret error)
       return "Unable to progress";
     case LZMA_PROG_ERROR:
       return "Programming error";
+    case LZMA_SEEK_NEEDED:
+      return "Seed needed";
     default:
       return "Unknown LZMA error";
   }
@@ -306,6 +308,7 @@ tor_lzma_compress_process(tor_lzma_compress_state_t *state,
     case LZMA_OPTIONS_ERROR:
     case LZMA_DATA_ERROR:
     case LZMA_PROG_ERROR:
+    case LZMA_SEEK_NEEDED:
     default:
       log_warn(LD_GENERAL, "LZMA %s didn't finish: %s.",
                state->compress ? "compression" : "decompression",
