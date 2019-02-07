@@ -1271,7 +1271,10 @@ sandbox_init_filter(void)
 int
 run_tor_main_loop(void)
 {
-  handle_signals();
+  // TokenPay: Do not handle any signals in Tor as they are process-wide aspects and we want to handle them in TokenPay
+  //
+  // handle_signals();
+
   timers_initialize();
   initialize_mainloop_events();
 
