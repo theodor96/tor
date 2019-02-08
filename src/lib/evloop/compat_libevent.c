@@ -136,6 +136,18 @@ tor_libevent_initialize(tor_libevent_cfg *torcfg)
   /* some paths below don't use torcfg, so avoid unused variable warnings */
   (void)torcfg;
 
+  #ifdef WIN32
+    if (evthread_use_windows_threads())
+    {
+      log_err(LD_GENERAL, "evthread_use_windows_threads() failed");
+    }
+  #else
+    if (evthread_use_pthreads())
+    {
+      log_err(LD_GENERAL, "evthread_use_pthreads() failed");
+    }
+  #endif
+
   {
     int attempts = 0;
     struct event_config *cfg;
@@ -156,6 +168,10 @@ tor_libevent_initialize(tor_libevent_cfg *torcfg)
     event_config_set_flag(cfg, EVENT_BASE_FLAG_EPOLL_USE_CHANGELIST);
 
     the_event_base = event_base_new_with_config(cfg);
+    if (evthread_make_base_notifiable(the_event_base))
+    {
+      log_err(LD_GENERAL, "evthread_make_base_notifiable() failed");
+    }
 
     event_config_free(cfg);
   }
