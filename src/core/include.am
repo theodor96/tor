@@ -58,6 +58,7 @@ LIBTOR_APP_A_SOURCES = 				\
 	src/core/proto/proto_http.c		\
 	src/core/proto/proto_socks.c		\
 	src/feature/api/tor_api.c		\
+	src/feature/api/tor_tokenpay_api.c \
 	src/feature/client/addressmap.c		\
 	src/feature/client/bridges.c		\
 	src/feature/client/circpathbias.c	\
