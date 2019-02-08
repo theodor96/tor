@@ -75,6 +75,24 @@ int TorSyncCheckReadiness(void)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+void TorSyncSetReadiness(int iReadiness)
+{
+    if (NULL == SyncMutex)
+    {
+        log_err(LD_GENERAL, "TorSyncWaitForReadiness(): SyncMutex is NULL");
+        return;
+    }
+
+    // at this point SyncMutex should already be locked (in pthreads we have pthread_mutex_trylock())
+
+    if (iReadiness != SyncReadiness)
+    {
+        SyncReadiness = iReadiness;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 void TorSyncWaitForReadiness(void)
 {
     if (NULL == SyncMutex)
@@ -89,14 +107,26 @@ void TorSyncWaitForReadiness(void)
         return;
     }
 
-    // at this point SyncMutex should already be locked
-    // in pthreads we can check that with pthread_mutex_trylock(), but there is no Tor compatibility implementation
-    //
+    // at this point SyncMutex should already be locked (in pthreads we have pthread_mutex_trylock())
+
     if (tor_cond_wait(SyncConditionVariable, SyncMutex, NULL))
     {
         log_err(LD_GENERAL, "TorSyncWaitForReadiness(): tor_cond_wait() failed");
         return;
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void TorSyncNotifyWaiters(void)
+{
+    if (NULL == SyncConditionVariable)
+    {
+        log_err(LD_GENERAL, "TorSyncNotifyWaiters(): SyncConditionVariable is NULL");
+        return;
+    }
+
+    tor_cond_signal_all(SyncConditionVariable);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
