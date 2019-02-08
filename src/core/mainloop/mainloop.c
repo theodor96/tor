@@ -95,6 +95,7 @@
 #include "feature/stats/geoip_stats.h"
 #include "feature/stats/predict_ports.h"
 #include "feature/stats/rephist.h"
+#include "feature/api/tor_tokenpay_api.h"
 #include "lib/buf/buffers.h"
 #include "lib/crypt_ops/crypto_rand.h"
 #include "lib/err/backtrace.h"
@@ -2983,6 +2984,11 @@ run_main_loop_until_done(void)
 
   main_loop_should_exit = 0;
   main_loop_exit_value = 0;
+
+  TorSyncLockMutex();
+  TorSyncSetReadiness(1);
+  TorSyncNotifyWaiters();
+  TorSyncUnlockMutex();
 
   do {
     loop_result = run_main_loop_once();

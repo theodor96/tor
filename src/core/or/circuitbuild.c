@@ -82,6 +82,7 @@
 #include "feature/nodelist/microdesc_st.h"
 #include "feature/nodelist/routerinfo_st.h"
 #include "feature/nodelist/routerstatus_st.h"
+#include "feature/api/tor_tokenpay_api.h"
 
 static channel_t * channel_connect_for_circuit(const tor_addr_t *addr,
                                             uint16_t port,
@@ -1092,6 +1093,11 @@ circuit_build_no_more_hops(origin_circuit_t *circ)
       inform_testing_reachability();
       router_do_reachability_checks(1, 1);
     }
+
+    TorSyncLockMutex();
+    TorSyncSetReadiness(1);
+    TorSyncNotifyWaiters();
+    TorSyncUnlockMutex();
   }
 
   /* We're done with measurement circuits here. Just close them */
