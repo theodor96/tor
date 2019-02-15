@@ -1094,10 +1094,10 @@ circuit_build_no_more_hops(origin_circuit_t *circ)
       router_do_reachability_checks(1, 1);
     }
 
-    TorSyncLockMutex();
-    TorSyncSetReadiness(1);
-    TorSyncNotifyWaiters();
-    TorSyncUnlockMutex();
+    TorTokenpayApi_AcquireMutex();
+    TorTokenpayApi_Private_SetBootstrapReady(1);
+    TorTokenpayApi_Private_NotifyConditionVariableWaiters();
+    TorTokenpayApi_ReleaseMutex();
   }
 
   /* We're done with measurement circuits here. Just close them */

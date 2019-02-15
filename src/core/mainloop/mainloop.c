@@ -2980,15 +2980,21 @@ run_main_loop_once(void)
 STATIC int
 run_main_loop_until_done(void)
 {
+  if (TorTokenpayApi_HasShutdownBeenRequested())
+  {
+    return 0;
+  }
+
   int loop_result = 1;
 
   main_loop_should_exit = 0;
   main_loop_exit_value = 0;
 
-  TorSyncLockMutex();
-  TorSyncSetReadiness(1);
-  TorSyncNotifyWaiters();
-  TorSyncUnlockMutex();
+  TorTokenpayApi_AcquireMutex();
+  TorTokenpayApi_Private_SetMainLoopReady(1);
+  TorTokenpayApi_Private_NotifyConditionVariableWaiters();
+  TorTokenpayApi_ReleaseMutex();
+  tor_thread_yield();
 
   do {
     loop_result = run_main_loop_once();

@@ -94,6 +94,8 @@
 #include "feature/dirauth/authmode.h"
 #include "feature/dirauth/shared_random.h"
 
+#include "feature/api/tor_tokenpay_api.h"
+
 #include "core/or/or_connection_st.h"
 #include "core/or/port_cfg_st.h"
 
@@ -1426,6 +1428,10 @@ tor_run_main(const tor_main_configuration_t *tor_cfg)
       tor_free(argv);
       log_err(LD_BUG,"Failed to create syscall sandbox filter");
       tor_free_all(0);
+      TorTokenpayApi_AcquireMutex();
+      TorTokenpayApi_Private_SetErrorOccurred(1);
+      TorTokenpayApi_Private_NotifyConditionVariableWaiters();
+      TorTokenpayApi_ReleaseMutex();
       return -1;
     }
     tor_make_getaddrinfo_cache_active();
@@ -1475,5 +1481,14 @@ tor_run_main(const tor_main_configuration_t *tor_cfg)
   tor_cleanup();
  done:
   tor_free(argv);
+
+  if (0 != result)
+  {
+    TorTokenpayApi_AcquireMutex();
+    TorTokenpayApi_Private_SetErrorOccurred(1);
+    TorTokenpayApi_Private_NotifyConditionVariableWaiters();
+    TorTokenpayApi_ReleaseMutex();
+  }
+
   return result;
 }
