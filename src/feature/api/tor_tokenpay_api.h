@@ -22,78 +22,91 @@ extern "C"
 /**
  * TODO TSB
  */
-void TorSyncInitializePrimitives(void);
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+void TorTokenpayApi_InitializeSyncPrimitives(void);
 
 /**
  * TODO TSB
  */
-void TorSyncLockMutex(void);
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+void TorTokenpayApi_AcquireMutex(void);
 
 /**
  * TODO TSB
  */
-int TorStart(int iArgc, char* iArgv[]);
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+int TorTokenpayApi_StartDaemon(int iArgc, char* iArgv[]);
 
 /**
  * TODO TSB
  */
-int TorSyncCheckReadiness(void);
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+int TorTokenpayApi_IsMainLoopReady(void);
 
 /**
  * TODO TSB
  */
-void TorSyncSetReadiness(int iReadiness);
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+void TorTokenpayApi_Private_SetMainLoopReady(int iMainLoopReady);
 
 /**
  * TODO TSB
  */
-void TorSyncWaitForReadiness(void);
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+int TorTokenpayApi_IsBootstrapReady(void);
 
 /**
  * TODO TSB
  */
-void TorSyncNotifyWaiters(void);
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+void TorTokenpayApi_Private_SetBootstrapReady(int iBootstrapReady);
 
 /**
  * TODO TSB
  */
-void TorSyncUnlockMutex(void);
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+int TorTokenpayApi_HasAnyErrorOccurred(void);
 
 /**
  * TODO TSB
  */
-void TorSyncCleanupPrimitives(void);
+void TorTokenpayApi_Private_SetErrorOccurred(int iErrorOccurred);
 
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/**
+ * TODO TSB
+ */
+int TorTokenpayApi_HasShutdownBeenRequested(void);
+
+/**
+ * TODO TSB
+ */
+void TorTokenpayApi_Private_SetShutdownRequested(int iShutdownRequested);
+
+/**
+ * TODO TSB
+ */
+void TorTokenpayApi_WaitOnConditionVariable(void);
+
+/**
+ * TODO TSB
+ */
+void TorTokenpayApi_Private_NotifyConditionVariableWaiters(void);
+
+/**
+ * TODO TSB
+ */
+void TorTokenpayApi_ReleaseMutex(void);
+
+/**
+ * TODO TSB
+ */
+void TorTokenpayApi_CleanUpSyncPrimitives(void);
 
 /**
  * This function may be called from anywhere (any thread, any library), without any synchronization, to
  * insert an event in Tor's main event loop such that on the next loop iteration, Tor will exit cleanly
  */
-void TorStop(void);
+void TorTokenpayApi_StopDaemon(void);
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #ifdef TOR_TOKENPAY_API_PRIVATE
 
 #include <event2/util.h>
-void StopMainloopEventCallback(evutil_socket_t iEventFd, short iEventFlags, void* iEventArg);
+
+void StopMainLoopEventCallback(evutil_socket_t iEventFd, short iEventFlags, void* iEventArg);
 
 #endif // ifdef TOR_TOKENPAY_API_PRIVATE
 

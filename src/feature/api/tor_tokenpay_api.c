@@ -11,6 +11,7 @@
 #include <feature/api/tor_tokenpay_api.h>
 #undef TOR_TOKENPAY_API_PRIVATE
 
+#include <stdatomic.h>
 #include <lib/lock/compat_mutex.h>
 #include <lib/thread/threads.h>
 #include <event2/event.h>
@@ -22,41 +23,51 @@
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-const evutil_socket_t C_INVALID_FD = -1;
-tor_mutex_t* SyncMutex = NULL;
-tor_cond_t* SyncConditionVariable = NULL;
-int SyncReadiness = 0;
-struct event* StopMainloopEvent = NULL;
+struct TorTokenpayApi_Private_StateContainer
+{
+    tor_mutex_t* mutex;
+    tor_cond_t* conditionVariable;
+    atomic_bool isMainLoopReady;
+    atomic_bool isBootstrapReady;
+    atomic_bool hasAnyErrorOccurred;
+    atomic_bool hasShutdownBeenRequested;
+    struct event* stopMainLoopEvent;
+};
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void TorSyncInitializePrimitives(void)
+static const evutil_socket_t C_INVALID_FD = -1;
+static struct TorTokenpayApi_Private_StateContainer State =
+{ NULL, NULL, ATOMIC_VAR_INIT(0), ATOMIC_VAR_INIT(0), ATOMIC_VAR_INIT(0), ATOMIC_VAR_INIT(0), NULL };
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void TorTokenpayApi_InitializeSyncPrimitives(void)
 {
-    SyncMutex = tor_mutex_new_nonrecursive();
-    SyncConditionVariable = tor_cond_new();
+    State.mutex = tor_mutex_new_nonrecursive();
+    State.conditionVariable = tor_cond_new();
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void TorSyncLockMutex(void)
+void TorTokenpayApi_AcquireMutex(void)
 {
-    if (NULL == SyncMutex)
+    if (NULL == State.mutex)
     {
-        log_err(LD_GENERAL, "TorSyncLockMutex(): SyncMutex is NULL");
+        log_err(LD_GENERAL, "TorTokenpayApi_AcquireMutex(): mutex is NULL");
         return;
     }
 
-    tor_mutex_acquire(SyncMutex);
+    tor_mutex_acquire(State.mutex);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-int TorStart(int iArgc, char* iArgv[])
+int TorTokenpayApi_StartDaemon(int iArgc, char* iArgv[])
 {
     tor_main_configuration_t* config = tor_main_configuration_new();
     if (tor_main_configuration_set_command_line(config, iArgc, iArgv))
     {
-        log_err(LD_GENERAL, "TorStart(): tor_main_configuration_set_command_line() failed");
         return -1;
     }
 
@@ -68,157 +79,195 @@ int TorStart(int iArgc, char* iArgv[])
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-int TorSyncCheckReadiness(void)
+int TorTokenpayApi_IsMainLoopReady(void)
 {
-    return SyncReadiness;
+    return atomic_load(&State.isMainLoopReady);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void TorSyncSetReadiness(int iReadiness)
+void TorTokenpayApi_Private_SetMainLoopReady(int iMainLoopReady)
 {
-    if (NULL == SyncMutex)
+    atomic_store(&State.isMainLoopReady, iMainLoopReady);
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+int TorTokenpayApi_IsBootstrapReady(void)
+{
+    return atomic_load(&State.isBootstrapReady);
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void TorTokenpayApi_Private_SetBootstrapReady(int iBootstrapReady)
+{
+    atomic_store(&State.isBootstrapReady, iBootstrapReady);
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+int TorTokenpayApi_HasAnyErrorOccurred(void)
+{
+    return atomic_load(&State.hasAnyErrorOccurred);
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void TorTokenpayApi_Private_SetErrorOccurred(int iErrorOccurred)
+{
+    atomic_store(&State.hasAnyErrorOccurred, iErrorOccurred);
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+int TorTokenpayApi_HasShutdownBeenRequested(void)
+{
+    return atomic_load(&State.hasShutdownBeenRequested);
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void TorTokenpayApi_Private_SetShutdownRequested(int iShutdownRequested)
+{
+    atomic_store(&State.hasShutdownBeenRequested, iShutdownRequested);
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void TorTokenpayApi_WaitOnConditionVariable(void)
+{
+    if (NULL == State.mutex)
     {
-        log_err(LD_GENERAL, "TorSyncWaitForReadiness(): SyncMutex is NULL");
+        log_err(LD_GENERAL, "TorTokenpayApi_WaitOnConditionVariable(): mutex is NULL");
         return;
     }
 
-    // at this point SyncMutex should already be locked (in pthreads we have pthread_mutex_trylock())
-
-    if (iReadiness != SyncReadiness)
+    if (NULL == State.conditionVariable)
     {
-        SyncReadiness = iReadiness;
+        log_err(LD_GENERAL, "TorTokenpayApi_WaitOnConditionVariable(): condition variable is NULL");
+        return;
+    }
+
+    if (tor_cond_wait(State.conditionVariable, State.mutex, NULL))
+    {
+        log_err(LD_GENERAL, "TorTokenpayApi_WaitOnConditionVariable(): tor_cond_wait() failed");
+        return;
     }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void TorSyncWaitForReadiness(void)
+void TorTokenpayApi_Private_NotifyConditionVariableWaiters(void)
 {
-    if (NULL == SyncMutex)
+    if (NULL == State.conditionVariable)
     {
-        log_err(LD_GENERAL, "TorSyncWaitForReadiness(): SyncMutex is NULL");
+        log_err(LD_GENERAL, "TorTokenpayApi_Private_NotifyConditionVariableWaiters(): condition variable is NULL");
         return;
     }
 
-    if (NULL == SyncConditionVariable)
-    {
-        log_err(LD_GENERAL, "TorSyncWaitForReadiness(): SyncConditionVariable is NULL");
-        return;
-    }
-
-    // at this point SyncMutex should already be locked (in pthreads we have pthread_mutex_trylock())
-
-    if (tor_cond_wait(SyncConditionVariable, SyncMutex, NULL))
-    {
-        log_err(LD_GENERAL, "TorSyncWaitForReadiness(): tor_cond_wait() failed");
-        return;
-    }
+    tor_cond_signal_all(State.conditionVariable);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void TorSyncNotifyWaiters(void)
+void TorTokenpayApi_ReleaseMutex(void)
 {
-    if (NULL == SyncConditionVariable)
+    if (NULL == State.mutex)
     {
-        log_err(LD_GENERAL, "TorSyncNotifyWaiters(): SyncConditionVariable is NULL");
+        log_err(LD_GENERAL, "TorTokenpayApi_ReleaseMutex(): mutex is NULL");
         return;
     }
 
-    tor_cond_signal_all(SyncConditionVariable);
+    tor_mutex_release(State.mutex);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void TorSyncUnlockMutex(void)
+void TorTokenpayApi_CleanUpSyncPrimitives(void)
 {
-    if (NULL == SyncMutex)
+    if (NULL == State.mutex)
     {
-        log_err(LD_GENERAL, "TorSyncUnlockMutex(): SyncMutex is NULL");
+        log_err(LD_GENERAL, "TorTokenpayApi_CleanUpSyncPrimitives(): mutex is NULL");
         return;
     }
 
-    tor_mutex_release(SyncMutex);
+    if (NULL == State.conditionVariable)
+    {
+        log_err(LD_GENERAL, "TorTokenpayApi_CleanUpSyncPrimitives(): conditionVariable is NULL");
+        return;
+    }
+
+    TorTokenpayApi_Private_SetMainLoopReady(0);
+    TorTokenpayApi_Private_SetBootstrapReady(0);
+    TorTokenpayApi_Private_SetErrorOccurred(0);
+    TorTokenpayApi_Private_SetShutdownRequested(0);
+
+    tor_cond_free(State.conditionVariable);
+    tor_mutex_free(State.mutex);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void TorSyncCleanupPrimitives(void)
+void TorTokenpayApi_StopDaemon(void)
 {
-    if (NULL == SyncMutex)
-    {
-        log_err(LD_GENERAL, "TorSyncCleanupPrimitives(): SyncMutex is NULL");
-        return;
-    }
-
-    if (NULL == SyncConditionVariable)
-    {
-        log_err(LD_GENERAL, "TorSyncCleanupPrimitives(): SyncConditionVariable is NULL");
-        return;
-    }
-
-    tor_cond_free(SyncConditionVariable);
-    tor_mutex_free(SyncMutex);
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-void TorStop(void)
-{
-    TorSyncLockMutex();
-    if (0 == TorSyncCheckReadiness())
-    {
-        TorSyncUnlockMutex();
-
-        log_notice(LD_GENERAL, "TorStop(): the main event loop hasn't started yet or has already been stopped");
-        return;
-    }
-    else
-    {
-        TorSyncUnlockMutex();
-    }
-
-    if (StopMainloopEvent)
+    if (TorTokenpayApi_HasShutdownBeenRequested())
     {
         log_notice(LD_GENERAL,
-                   "TorStop(): this function has been called before, it will take effect on next loop iteration");
+                   "TorTokenpayApi_StopDaemon(): this function has been called before, wait until next loop iteration");
+        return;
+    }
+
+    TorTokenpayApi_Private_SetShutdownRequested(1);
+
+    if (0 == TorTokenpayApi_IsMainLoopReady())
+    {
+        log_notice(LD_GENERAL, "TorTokenpayApi_StopDaemon(): MainLoop isn't ready, notifying cv waiters");
+        TorTokenpayApi_Private_NotifyConditionVariableWaiters();
+
         return;
     }
 
     if (NULL == tor_libevent_get_base())
     {
-        log_err(LD_GENERAL, "TorStop(): tor_libevent_get_base() is NULL");
+        log_err(LD_GENERAL, "TorTokenpayApi_StopDaemon(): tor_libevent_get_base() is NULL");
         return;
     }
 
-    StopMainloopEvent = tor_event_new(tor_libevent_get_base(), C_INVALID_FD, 0, &StopMainloopEventCallback, NULL);
-    if (event_add(StopMainloopEvent, NULL))
+    State.stopMainLoopEvent = tor_event_new(tor_libevent_get_base(), C_INVALID_FD, 0, &StopMainLoopEventCallback, NULL);
+    if (event_add(State.stopMainLoopEvent, NULL))
     {
-        log_err(LD_GENERAL, "Error from libevent when adding the interrupt_mainloop_event");
+        log_err(LD_GENERAL, "TorTokenpayApi_StopDaemon(): Error from libevent when adding the stopMainLoopEvent");
         return;
     }
 
-    event_active(StopMainloopEvent, 0, 0);
+    event_active(State.stopMainLoopEvent, 0, 0);
+
+    // after inserting the stopping event, also wake up waiters since bootstrapping will never get ready
+    //
+    if (0 == TorTokenpayApi_IsBootstrapReady())
+    {
+        TorTokenpayApi_Private_NotifyConditionVariableWaiters();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void StopMainloopEventCallback(evutil_socket_t iEventFd, short iEventFlags, void* iEventArg)
+void StopMainLoopEventCallback(evutil_socket_t iEventFd, short iEventFlags, void* iEventArg)
 {
     (void) iEventFd;
     (void) iEventFlags;
     (void) iEventArg;
 
-    if (NULL == StopMainloopEvent)
+    if (NULL == State.stopMainLoopEvent)
     {
-        log_err(LD_GENERAL, "StopMainloopEventCallback(): StopMainloopEvent is NULL");
+        log_err(LD_GENERAL, "StopMainLoopEventCallback(): stopMainloopEvent is NULL");
         return;
     }
 
-    event_free(StopMainloopEvent);
+    event_free(State.stopMainLoopEvent);
     update_current_time(time(NULL));
 
-    log_notice(LD_GENERAL, "StopMainloopEventCallback(): exiting cleanly");
+    log_notice(LD_GENERAL, "StopMainLoopEventCallback(): exiting cleanly");
     tor_shutdown_event_loop_and_exit(0);
 }
