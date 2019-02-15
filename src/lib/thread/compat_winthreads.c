@@ -220,4 +220,10 @@ tor_threads_init(void)
   set_main_thread();
 }
 
+void
+tor_thread_yield(void)
+{
+  SwitchToThread();
+}
+
 #endif /* defined(_WIN32) */

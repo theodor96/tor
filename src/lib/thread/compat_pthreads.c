@@ -268,3 +268,9 @@ tor_threads_init(void)
     set_main_thread();
   }
 }
+
+void
+tor_thread_yield(void)
+{
+  pthread_yield();
+}
