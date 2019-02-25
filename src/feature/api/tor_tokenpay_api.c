@@ -11,6 +11,7 @@
 #include <feature/api/tor_tokenpay_api.h>
 #undef TOR_TOKENPAY_API_PRIVATE
 
+#include <assert.h>
 #include <stdatomic.h>
 #include <lib/lock/compat_mutex.h>
 #include <lib/thread/threads.h>
@@ -55,6 +56,7 @@ void TorTokenpayApi_AcquireMutex(void)
     if (NULL == State.mutex)
     {
         log_err(LD_GENERAL, "TorTokenpayApi_AcquireMutex(): mutex is NULL");
+        assert(0);
         return;
     }
 
@@ -140,18 +142,21 @@ void TorTokenpayApi_WaitOnConditionVariable(void)
     if (NULL == State.mutex)
     {
         log_err(LD_GENERAL, "TorTokenpayApi_WaitOnConditionVariable(): mutex is NULL");
+        assert(0);
         return;
     }
 
     if (NULL == State.conditionVariable)
     {
         log_err(LD_GENERAL, "TorTokenpayApi_WaitOnConditionVariable(): condition variable is NULL");
+        assert(0);
         return;
     }
 
     if (tor_cond_wait(State.conditionVariable, State.mutex, NULL))
     {
         log_err(LD_GENERAL, "TorTokenpayApi_WaitOnConditionVariable(): tor_cond_wait() failed");
+        assert(0);
         return;
     }
 }
@@ -163,6 +168,7 @@ void TorTokenpayApi_Private_NotifyConditionVariableWaiters(void)
     if (NULL == State.conditionVariable)
     {
         log_err(LD_GENERAL, "TorTokenpayApi_Private_NotifyConditionVariableWaiters(): condition variable is NULL");
+        assert(0);
         return;
     }
 
@@ -176,6 +182,7 @@ void TorTokenpayApi_ReleaseMutex(void)
     if (NULL == State.mutex)
     {
         log_err(LD_GENERAL, "TorTokenpayApi_ReleaseMutex(): mutex is NULL");
+        assert(0);
         return;
     }
 
@@ -189,12 +196,14 @@ void TorTokenpayApi_CleanUpSyncPrimitives(void)
     if (NULL == State.mutex)
     {
         log_err(LD_GENERAL, "TorTokenpayApi_CleanUpSyncPrimitives(): mutex is NULL");
+        assert(0);
         return;
     }
 
     if (NULL == State.conditionVariable)
     {
         log_err(LD_GENERAL, "TorTokenpayApi_CleanUpSyncPrimitives(): conditionVariable is NULL");
+        assert(0);
         return;
     }
 
@@ -215,6 +224,7 @@ void TorTokenpayApi_StopDaemon(void)
     {
         log_notice(LD_GENERAL,
                    "TorTokenpayApi_StopDaemon(): this function has been called before, wait until next loop iteration");
+        assert(0);
         return;
     }
 
@@ -231,6 +241,7 @@ void TorTokenpayApi_StopDaemon(void)
     if (NULL == tor_libevent_get_base())
     {
         log_err(LD_GENERAL, "TorTokenpayApi_StopDaemon(): tor_libevent_get_base() is NULL");
+        assert(0);
         return;
     }
 
@@ -238,6 +249,7 @@ void TorTokenpayApi_StopDaemon(void)
     if (event_add(State.stopMainLoopEvent, NULL))
     {
         log_err(LD_GENERAL, "TorTokenpayApi_StopDaemon(): Error from libevent when adding the stopMainLoopEvent");
+        assert(0);
         return;
     }
 
@@ -262,6 +274,7 @@ void StopMainLoopEventCallback(evutil_socket_t iEventFd, short iEventFlags, void
     if (NULL == State.stopMainLoopEvent)
     {
         log_err(LD_GENERAL, "StopMainLoopEventCallback(): stopMainloopEvent is NULL");
+        assert(0);
         return;
     }
 
