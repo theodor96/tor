@@ -233,7 +233,9 @@ void TorTokenpayApi_StopDaemon(void)
     if (0 == TorTokenpayApi_IsMainLoopReady())
     {
         log_notice(LD_GENERAL, "TorTokenpayApi_StopDaemon(): MainLoop isn't ready, notifying cv waiters");
+        TorTokenpayApi_AcquireMutex();
         TorTokenpayApi_Private_NotifyConditionVariableWaiters();
+        TorTokenpayApi_ReleaseMutex();
 
         return;
     }
@@ -259,7 +261,9 @@ void TorTokenpayApi_StopDaemon(void)
     //
     if (0 == TorTokenpayApi_IsBootstrapReady())
     {
+        TorTokenpayApi_AcquireMutex();
         TorTokenpayApi_Private_NotifyConditionVariableWaiters();
+        TorTokenpayApi_ReleaseMutex();
     }
 }
 
