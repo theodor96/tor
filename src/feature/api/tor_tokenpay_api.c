@@ -45,6 +45,20 @@ static struct TorTokenpayApi_Private_StateContainer State =
 
 void TorTokenpayApi_InitializeSyncPrimitives(void)
 {
+    if (NULL != State.mutex)
+    {
+        log_err(LD_GENERAL, "TorTokenpayApi_AcquireMutex(): mutex is already created");
+        assert(0);
+        return;
+    }
+
+    if (NULL != State.conditionVariable)
+    {
+        log_err(LD_GENERAL, "TorTokenpayApi_AcquireMutex(): condition variable is already created");
+        assert(0);
+        return;
+    }
+
     State.mutex = tor_mutex_new_nonrecursive();
     State.conditionVariable = tor_cond_new();
 }
@@ -214,6 +228,9 @@ void TorTokenpayApi_CleanUpSyncPrimitives(void)
 
     tor_cond_free(State.conditionVariable);
     tor_mutex_free(State.mutex);
+
+    State.conditionVariable = NULL;
+    State.mutex = NULL;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -230,40 +247,39 @@ void TorTokenpayApi_StopDaemon(void)
 
     TorTokenpayApi_Private_SetShutdownRequested(1);
 
-    if (0 == TorTokenpayApi_IsMainLoopReady())
+    if (!TorTokenpayApi_IsMainLoopReady() || !TorTokenpayApi_IsBootstrapReady())
     {
-        log_notice(LD_GENERAL, "TorTokenpayApi_StopDaemon(): MainLoop isn't ready, notifying cv waiters");
+        log_notice(LD_GENERAL, "TorTokenpayApi_StopDaemon(): MainLoop or Bootstrap isn't ready, notifying cv waiters");
         TorTokenpayApi_AcquireMutex();
         TorTokenpayApi_Private_NotifyConditionVariableWaiters();
         TorTokenpayApi_ReleaseMutex();
-
-        return;
     }
 
-    if (NULL == tor_libevent_get_base())
+    if (TorTokenpayApi_IsMainLoopReady())
     {
-        log_err(LD_GENERAL, "TorTokenpayApi_StopDaemon(): tor_libevent_get_base() is NULL");
-        assert(0);
-        return;
-    }
+        log_notice(LD_GENERAL, "TorTokenpayApi_StopDaemon(): Inserting event in queue because MainLoop is ready");
 
-    State.stopMainLoopEvent = tor_event_new(tor_libevent_get_base(), C_INVALID_FD, 0, &StopMainLoopEventCallback, NULL);
-    if (event_add(State.stopMainLoopEvent, NULL))
-    {
-        log_err(LD_GENERAL, "TorTokenpayApi_StopDaemon(): Error from libevent when adding the stopMainLoopEvent");
-        assert(0);
-        return;
-    }
+        if (NULL == tor_libevent_get_base())
+        {
+            log_err(LD_GENERAL, "TorTokenpayApi_StopDaemon(): tor_libevent_get_base() is NULL");
+            assert(0);
+            return;
+        }
 
-    event_active(State.stopMainLoopEvent, 0, 0);
+        State.stopMainLoopEvent = tor_event_new(tor_libevent_get_base(),
+                                                C_INVALID_FD,
+                                                0,
+                                                &StopMainLoopEventCallback,
+                                                NULL);
 
-    // after inserting the stopping event, also wake up waiters since bootstrapping will never get ready
-    //
-    if (0 == TorTokenpayApi_IsBootstrapReady())
-    {
-        TorTokenpayApi_AcquireMutex();
-        TorTokenpayApi_Private_NotifyConditionVariableWaiters();
-        TorTokenpayApi_ReleaseMutex();
+        if (event_add(State.stopMainLoopEvent, NULL))
+        {
+            log_err(LD_GENERAL, "TorTokenpayApi_StopDaemon(): Error from libevent when adding the stopMainLoopEvent");
+            assert(0);
+            return;
+        }
+
+        event_active(State.stopMainLoopEvent, 0, 0);
     }
 }
 
